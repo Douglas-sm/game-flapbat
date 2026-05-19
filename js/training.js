@@ -218,7 +218,7 @@ export class TrainingManager {
 
   getModeText() {
     return this.mode === "single"
-      ? "Mode: Single bat echolocation view"
+      ? "Mode: Single bat echolocation view | Pipes reveal only after biosonar"
       : "Mode: Bat swarm with simplified render";
   }
 
