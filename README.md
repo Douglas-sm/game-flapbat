@@ -56,6 +56,7 @@ This makes Flappy Bat AI a useful prototype for thinking about:
 - biosonar-inspired interfaces for future game AI or simulation studies
 
 ## Demo Assets
+🌐 [Live Demo](https://github.com/Douglas-sm/game-flapbird)
 
 ### Main dashboard view
 
