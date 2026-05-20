@@ -16,9 +16,10 @@ export class Pipe {
     this.playHeight = playHeight;
     this.speed = speed;
     this.scored = false;
-    this.echoHighlightUntil = 0;
-    this.echoRevealDuration = 0;
-    this.echoRevealStartedAt = 0;
+    this.echoRevealStates = {
+      top: createEchoRevealState(),
+      bottom: createEchoRevealState(),
+    };
   }
 
   update() {
@@ -29,23 +30,51 @@ export class Pipe {
     return this.x + this.width < 0;
   }
 
+  getSections() {
+    const capHeight = 14;
+    const bottomY = this.gapTop + this.gapHeight;
+
+    return {
+      top: {
+        x: this.x,
+        y: 0,
+        width: this.width,
+        height: this.gapTop,
+        anchor: "bottom",
+        capRect: {
+          x: this.x - 4,
+          y: this.gapTop - capHeight,
+          width: this.width + 8,
+          height: capHeight,
+        },
+      },
+      bottom: {
+        x: this.x,
+        y: bottomY,
+        width: this.width,
+        height: this.playHeight - bottomY,
+        anchor: "top",
+        capRect: {
+          x: this.x - 4,
+          y: bottomY,
+          width: this.width + 8,
+          height: capHeight,
+        },
+      },
+    };
+  }
+
   getCollisionRects() {
-    const topPipe = {
-      x: this.x,
-      y: 0,
-      width: this.width,
-      height: this.gapTop,
-    };
+    const sections = this.getSections();
+    return [sections.top, sections.bottom];
+  }
 
-    const bottomPipeY = this.gapTop + this.gapHeight;
-    const bottomPipe = {
-      x: this.x,
-      y: bottomPipeY,
-      width: this.width,
-      height: this.playHeight - bottomPipeY,
-    };
-
-    return [topPipe, bottomPipe];
+  getCollisionTargets() {
+    const sections = this.getSections();
+    return [
+      { part: "top", rect: sections.top },
+      { part: "bottom", rect: sections.bottom },
+    ];
   }
 
   collidesWith(rect) {
@@ -53,21 +82,28 @@ export class Pipe {
     return intersects(rect, topPipe) || intersects(rect, bottomPipe);
   }
 
-  flashEcho(durationMs = 1000, now = getNow()) {
-    if (!this.isEchoHighlighted(now)) {
-      this.echoRevealStartedAt = now;
+  flashEcho(part, durationMs = 1000, now = getNow()) {
+    const state = this.echoRevealStates[part];
+    if (!state) {
+      return;
     }
 
-    this.echoRevealDuration = durationMs;
-    this.echoHighlightUntil = Math.max(this.echoHighlightUntil, now + durationMs);
+    if (!this.isEchoHighlighted(part, now)) {
+      state.revealStartedAt = now;
+    }
+
+    state.revealDuration = durationMs;
+    state.highlightUntil = Math.max(state.highlightUntil, now + durationMs);
   }
 
-  isEchoHighlighted(now = getNow()) {
-    return this.echoHighlightUntil > now;
+  isEchoHighlighted(part, now = getNow()) {
+    const state = this.echoRevealStates[part];
+    return Boolean(state) && state.highlightUntil > now;
   }
 
-  getEchoRevealState(now = getNow()) {
-    if (!this.isEchoHighlighted(now) || this.echoRevealDuration <= 0) {
+  getEchoRevealState(part, now = getNow()) {
+    const state = this.echoRevealStates[part];
+    if (!state || !this.isEchoHighlighted(part, now) || state.revealDuration <= 0) {
       return {
         alpha: 0,
         outlineProgress: 0,
@@ -75,13 +111,13 @@ export class Pipe {
       };
     }
 
-    const remaining = this.echoHighlightUntil - now;
-    const fadeProgress = clamp01(remaining / this.echoRevealDuration);
+    const remaining = state.highlightUntil - now;
+    const fadeProgress = clamp01(remaining / state.revealDuration);
     const fadeWindow = 0.28;
     const alpha = fadeProgress > fadeWindow ? 1 : fadeProgress / fadeWindow;
 
-    const elapsed = Math.max(0, now - this.echoRevealStartedAt);
-    const introDuration = Math.min(520, Math.max(320, this.echoRevealDuration * 0.52));
+    const elapsed = Math.max(0, now - state.revealStartedAt);
+    const introDuration = Math.min(520, Math.max(320, state.revealDuration * 0.52));
     const introProgress = clamp01(elapsed / introDuration);
     const outlinePhase = 0.42;
 
@@ -93,7 +129,9 @@ export class Pipe {
   }
 
   draw(ctx, now = getNow()) {
-    const reveal = this.getEchoRevealState(now);
+    const sections = this.getSections();
+    const topReveal = this.getEchoRevealState("top", now);
+    const bottomReveal = this.getEchoRevealState("bottom", now);
     const ghostPalette = {
       body: "#1a2232",
       dark: "#0d1422",
@@ -110,53 +148,20 @@ export class Pipe {
       scan: "#fff0f3",
       glow: "rgba(255, 96, 121, 0.52)",
     };
-    const capHeight = 14;
-    const topSection = {
-      x: this.x,
-      y: 0,
-      width: this.width,
-      height: this.gapTop,
-      anchor: "bottom",
-      capRect: {
-        x: this.x - 4,
-        y: this.gapTop - capHeight,
-        width: this.width + 8,
-        height: capHeight,
-      },
-    };
-    const bottomY = this.gapTop + this.gapHeight;
-    const bottomSection = {
-      x: this.x,
-      y: bottomY,
-      width: this.width,
-      height: this.playHeight - bottomY,
-      anchor: "top",
-      capRect: {
-        x: this.x - 4,
-        y: bottomY,
-        width: this.width + 8,
-        height: capHeight,
-      },
-    };
 
     ctx.save();
     ctx.globalAlpha = 0.1;
-    drawGhostPipeSection(ctx, topSection, ghostPalette);
-    drawGhostPipeSection(ctx, bottomSection, ghostPalette);
+    drawGhostPipeSection(ctx, sections.top, ghostPalette);
+    drawGhostPipeSection(ctx, sections.bottom, ghostPalette);
     ctx.restore();
 
-    if (reveal.alpha <= 0) {
-      return;
+    if (topReveal.alpha > 0) {
+      drawRevealedPipeSection(ctx, sections.top, revealPalette, topReveal);
     }
 
-    ctx.save();
-    ctx.globalAlpha = reveal.alpha;
-    ctx.shadowColor = revealPalette.glow;
-    ctx.shadowBlur = 8 + reveal.outlineProgress * 12;
-
-    drawPipeSection(ctx, topSection, revealPalette, reveal);
-    drawPipeSection(ctx, bottomSection, revealPalette, reveal);
-    ctx.restore();
+    if (bottomReveal.alpha > 0) {
+      drawRevealedPipeSection(ctx, sections.bottom, revealPalette, bottomReveal);
+    }
   }
 }
 
@@ -187,6 +192,15 @@ function drawGhostPipeSection(ctx, section, palette) {
     section.capRect.width,
     section.capRect.height
   );
+}
+
+function drawRevealedPipeSection(ctx, section, palette, reveal) {
+  ctx.save();
+  ctx.globalAlpha = reveal.alpha;
+  ctx.shadowColor = palette.glow;
+  ctx.shadowBlur = 8 + reveal.outlineProgress * 12;
+  drawPipeSection(ctx, section, palette, reveal);
+  ctx.restore();
 }
 
 function drawPipeSection(ctx, section, palette, reveal) {
@@ -302,6 +316,14 @@ function drawProgressOutline(ctx, x, y, width, height, thickness, progress, colo
 
 function getNow() {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function createEchoRevealState() {
+  return {
+    highlightUntil: 0,
+    revealDuration: 0,
+    revealStartedAt: 0,
+  };
 }
 
 function clamp01(value) {

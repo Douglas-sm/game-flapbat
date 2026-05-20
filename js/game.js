@@ -170,7 +170,7 @@ export class Game {
 
       const collision = this.findWaveCollision(wave, wave.previousDistance, wave.distance);
       if (collision) {
-        collision.pipe.flashEcho(ECHO_FLASH_MS);
+        collision.pipe.flashEcho(collision.part, ECHO_FLASH_MS);
         this.spawnEchoParticles(collision.x, collision.y, wave.angle);
         continue;
       }
@@ -196,9 +196,12 @@ export class Game {
           continue;
         }
 
-        const hit = pipe.getCollisionRects().some((rect) => pointInRect(point, rect));
+        const hit = pipe
+          .getCollisionTargets()
+          .find((target) => pointInRect(point, target.rect));
+
         if (hit) {
-          return { pipe, x: point.x, y: point.y };
+          return { pipe, part: hit.part, x: point.x, y: point.y };
         }
       }
     }
