@@ -1,5 +1,9 @@
+import { inject } from "@vercel/analytics";
 import { TrainingManager } from "./training.js";
 import { UIController } from "./ui.js";
+
+// Initialize Vercel Analytics
+inject();
 
 function bootstrap() {
   const canvas = document.getElementById("gameCanvas");

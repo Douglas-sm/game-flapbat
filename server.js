@@ -20,7 +20,7 @@ const MIME_TYPES = {
 };
 
 const PUBLIC_FILES = new Set(["index.html", "style.css"]);
-const PUBLIC_DIRECTORIES = ["assets", "js"];
+const PUBLIC_DIRECTORIES = ["assets", "js", "node_modules"];
 
 function sendError(res, code, message, headers = {}) {
   res.writeHead(code, {
